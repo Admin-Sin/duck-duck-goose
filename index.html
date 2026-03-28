@@ -1,0 +1,315 @@
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  #game-wrap { font-family: var(--font-sans); padding: 12px; user-select: none; }
+  #sky { width: 100%; height: 260px; background: #87CEEB; border-radius: 8px 8px 0 0; position: relative; overflow: hidden; cursor: crosshair; }
+  #ground { width: 100%; height: 36px; background: #5a8a3c; border-radius: 0 0 8px 8px; position: relative; }
+  #ground::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 8px; background: #6fa84a; }
+  .cloud { position: absolute; background: white; border-radius: 50px; opacity: 0.85; }
+  #hud { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--color-background-secondary); border: 0.5px solid var(--color-border-tertiary); border-top: none; border-radius: 0 0 8px 8px; margin-bottom: 10px; }
+  .hud-block { text-align: center; }
+  .hud-label { font-size: 11px; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.05em; }
+  .hud-val { font-size: 20px; font-weight: 500; color: var(--color-text-primary); }
+  #ammo-bar { display: flex; gap: 5px; align-items: center; }
+  .bullet { width: 10px; height: 18px; background: #B8860B; border-radius: 2px 2px 0 0; transition: opacity 0.2s; }
+  .bullet.spent { opacity: 0.2; }
+  #msg-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; pointer-events: none; }
+  #msg-box { background: rgba(0,0,0,0.65); color: white; padding: 10px 24px; border-radius: 8px; font-size: 18px; font-weight: 500; text-align: center; }
+  #sub-msg { color: rgba(255,255,255,0.85); font-size: 13px; }
+  #reload-btn { pointer-events: all; margin-top: 4px; padding: 6px 18px; border: 1.5px solid white; border-radius: 6px; background: transparent; color: white; font-size: 14px; cursor: pointer; }
+  #reload-btn:hover { background: rgba(255,255,255,0.15); }
+  .bird { position: absolute; cursor: crosshair; }
+  .feather { position: absolute; width: 6px; height: 6px; border-radius: 50%; animation: fall 0.9s forwards; pointer-events: none; }
+  @keyframes fall { 0%{opacity:1;transform:scale(1) translateY(0)} 100%{opacity:0;transform:scale(0.3) translateY(80px) rotate(720deg)} }
+  #dog-wrap { position: absolute; bottom: 2px; right: 18px; }
+  #score-pop { position: absolute; font-size: 16px; font-weight: 500; pointer-events: none; animation: pop 0.8s forwards; text-shadow: 0 1px 3px #000; }
+  @keyframes pop { 0%{opacity:1;transform:translateY(0)} 100%{opacity:0;transform:translateY(-40px)} }
+  #wave-label { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); font-size: 12px; color: rgba(255,255,255,0.8); background: rgba(0,0,0,0.3); padding: 2px 10px; border-radius: 10px; }
+</style>
+
+<div id="game-wrap">
+  <div id="sky">
+    <div class="cloud" style="width:90px;height:30px;top:30px;left:60px;"></div>
+    <div class="cloud" style="width:60px;height:22px;top:40px;left:120px;"></div>
+    <div class="cloud" style="width:110px;height:35px;top:18px;left:420px;"></div>
+    <div class="cloud" style="width:70px;height:24px;top:28px;left:510px;"></div>
+    <div id="wave-label">Wave 1</div>
+    <div id="msg-overlay" style="display:none;">
+      <div id="msg-box">Get ready!</div>
+      <div id="sub-msg"></div>
+      <button id="reload-btn" style="display:none;">Play again</button>
+    </div>
+    <div id="dog-wrap" style="display:none;">
+      <svg width="52" height="58" viewBox="0 0 52 58">
+        <ellipse cx="26" cy="42" rx="16" ry="12" fill="#c8a06a"/>
+        <ellipse cx="26" cy="28" rx="11" ry="10" fill="#c8a06a"/>
+        <ellipse cx="20" cy="22" rx="5" ry="7" fill="#c8a06a"/>
+        <ellipse cx="32" cy="22" rx="5" ry="7" fill="#c8a06a"/>
+        <ellipse cx="26" cy="30" rx="7" ry="6" fill="#e0b880"/>
+        <circle cx="22" cy="27" r="2" fill="#3a2a10"/>
+        <circle cx="30" cy="27" r="2" fill="#3a2a10"/>
+        <ellipse cx="26" cy="31" rx="3" ry="2" fill="#c06060"/>
+        <ellipse cx="14" cy="44" rx="3" ry="7" fill="#b8905a"/>
+        <ellipse cx="38" cy="44" rx="3" ry="7" fill="#b8905a"/>
+        <ellipse cx="18" cy="53" rx="4" ry="3" fill="#a07040"/>
+        <ellipse cx="34" cy="53" rx="4" ry="3" fill="#a07040"/>
+        <path id="dog-tail" d="M40 38 Q52 28 48 20" stroke="#c8a06a" stroke-width="5" fill="none" stroke-linecap="round"/>
+      </svg>
+    </div>
+  </div>
+  <div id="ground"></div>
+  <div id="hud">
+    <div class="hud-block">
+      <div class="hud-label">Score</div>
+      <div class="hud-val" id="score-display">0</div>
+    </div>
+    <div class="hud-block">
+      <div class="hud-label">Ammo</div>
+      <div id="ammo-bar"></div>
+    </div>
+    <div class="hud-block">
+      <div class="hud-label">Hit</div>
+      <div class="hud-val" id="hit-display">0/0</div>
+    </div>
+    <div class="hud-block">
+      <div class="hud-label">Wave</div>
+      <div class="hud-val" id="wave-display">1</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const sky = document.getElementById('sky');
+const msgOverlay = document.getElementById('msg-overlay');
+const msgBox = document.getElementById('msg-box');
+const subMsg = document.getElementById('sub-msg');
+const reloadBtn = document.getElementById('reload-btn');
+const scoreDisplay = document.getElementById('score-display');
+const hitDisplay = document.getElementById('hit-display');
+const waveDisplay = document.getElementById('wave-display');
+const waveLabel = document.getElementById('wave-label');
+const ammoBar = document.getElementById('ammo-bar');
+const dogWrap = document.getElementById('dog-wrap');
+
+const TYPES = ['duck','duck','duck','duck','goose'];
+const TYPE_SCORES = { duck: 10, goose: 50 };
+const AMMO_PER_WAVE = 10;
+const BIRDS_PER_WAVE = 6;
+
+let state = { score: 0, wave: 1, ammo: AMMO_PER_WAVE, birds: [], shot: 0, hit: 0, active: false, tailTimer: null };
+
+// Bird SVG always faces RIGHT (bill on right side)
+function makeBirdSVG(type) {
+  const isDuck = type === 'duck';
+  const body  = isDuck ? '#4a90a4' : '#c0392b';
+  const head  = isDuck ? '#2e7d8a' : '#922b21';
+  const bill  = isDuck ? '#f39c12' : '#e74c3c';
+  const belly = isDuck ? '#7fb3c8' : '#e8958a';
+  const wing  = isDuck ? '#2e7d8a' : '#922b21';
+  // head on RIGHT, tail on LEFT
+  return `<svg width="60" height="40" viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="32" cy="24" rx="18" ry="11" fill="${body}"/>
+    <ellipse cx="32" cy="26" rx="14" ry="7" fill="${belly}"/>
+    <ellipse cx="48" cy="17" rx="10" ry="8" fill="${head}"/>
+    <ellipse cx="57" cy="17" rx="5" ry="3" fill="${bill}"/>
+    <circle cx="51" cy="14" r="3" fill="white"/>
+    <circle cx="51" cy="14" r="1.5" fill="#222"/>
+    <path d="M40 16 Q32 8 18 14" stroke="${wing}" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M22 22 Q10 18 2 22" stroke="${wing}" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  </svg>`;
+}
+
+function makeAmmoBar(ammo) {
+  ammoBar.innerHTML = '';
+  for (let i = 0; i < AMMO_PER_WAVE; i++) {
+    const b = document.createElement('div');
+    b.className = 'bullet' + (i >= ammo ? ' spent' : '');
+    ammoBar.appendChild(b);
+  }
+}
+
+function spawnBird(index) {
+  const type = TYPES[Math.floor(Math.random() * TYPES.length)];
+  const delay = index * 900 + Math.random() * 400;
+
+  setTimeout(() => {
+    if (!state.active) return;
+    const skyH = sky.offsetHeight;
+    const skyW = sky.offsetWidth;
+
+    const goRight = Math.random() < 0.5; // true = flying left→right
+    const speed = 1.2 + Math.random() * 1.4 + state.wave * 0.15;
+    const amplitude = 18 + Math.random() * 25;
+    const freq = 0.025 + Math.random() * 0.015;
+    const baseY = 30 + Math.random() * (skyH - 100);
+
+    const birdEl = document.createElement('div');
+    birdEl.className = 'bird';
+    birdEl.innerHTML = makeBirdSVG(type);
+    birdEl.dataset.type = type;
+    birdEl.dataset.alive = '1';
+
+    let x = goRight ? -65 : skyW + 5;
+    birdEl.style.top = baseY + 'px';
+    birdEl.style.left = x + 'px';
+
+    // Birds always face right in SVG; if flying LEFT, flip horizontally
+    if (!goRight) {
+      birdEl.style.transform = 'scaleX(-1)';
+    }
+
+    sky.appendChild(birdEl);
+    state.birds.push(birdEl);
+
+    let frame = 0;
+    function fly() {
+      if (!birdEl.isConnected) return;
+      if (birdEl.dataset.alive === '0') return;
+      x += goRight ? speed : -speed;
+      frame++;
+      const y = baseY + Math.sin(frame * freq) * amplitude;
+      birdEl.style.left = x + 'px';
+      birdEl.style.top = y + 'px';
+      if (x > skyW + 70 || x < -70) {
+        birdEl.remove();
+        state.birds = state.birds.filter(b => b !== birdEl);
+        checkWaveEnd();
+        return;
+      }
+      requestAnimationFrame(fly);
+    }
+    requestAnimationFrame(fly);
+
+    birdEl.addEventListener('click', (e) => {
+      if (!state.active || birdEl.dataset.alive === '0' || state.ammo <= 0) return;
+      e.stopPropagation();
+      state.ammo--;
+      makeAmmoBar(state.ammo);
+      birdEl.dataset.alive = '0';
+      state.hit++;
+      state.score += TYPE_SCORES[type] * state.wave;
+      scoreDisplay.textContent = state.score;
+
+      const rect = birdEl.getBoundingClientRect();
+      const skyRect = sky.getBoundingClientRect();
+      const px = rect.left - skyRect.left + rect.width / 2;
+      const py = rect.top - skyRect.top + rect.height / 2;
+
+      for (let i = 0; i < 8; i++) {
+        const f = document.createElement('div');
+        f.className = 'feather';
+        f.style.cssText = `background:${type==='goose'?'#c0392b':'#4a90a4'};left:${px+(Math.random()-.5)*30}px;top:${py}px;animation-delay:${Math.random()*0.2}s;`;
+        sky.appendChild(f);
+        setTimeout(() => f.remove(), 1000);
+      }
+
+      const pop = document.createElement('div');
+      pop.id = 'score-pop';
+      pop.textContent = (type==='goose'?'GOOSE! +':'+')+TYPE_SCORES[type]*state.wave;
+      pop.style.cssText = `left:${px-20}px;top:${py-20}px;color:${type==='goose'?'#f39c12':'#fff'}`;
+      sky.appendChild(pop);
+      setTimeout(() => pop.remove(), 900);
+
+      birdEl.style.transition = 'transform 0.4s, opacity 0.4s, top 0.6s';
+      birdEl.style.transform = (goRight ? '' : 'scaleX(-1) ') + 'rotate(90deg)';
+      birdEl.style.opacity = '0';
+      birdEl.style.top = (parseFloat(birdEl.style.top) + 80) + 'px';
+      setTimeout(() => {
+        birdEl.remove();
+        state.birds = state.birds.filter(b => b !== birdEl);
+        updateHitDisplay();
+        checkWaveEnd();
+      }, 600);
+
+      updateHitDisplay();
+    });
+  }, delay);
+}
+
+function updateHitDisplay() {
+  hitDisplay.textContent = state.hit + '/' + state.shot;
+}
+
+function checkWaveEnd() {
+  if (!state.active) return;
+  const stillAlive = state.birds.filter(b => b.isConnected && b.dataset.alive === '1').length;
+  const inDOM = state.birds.filter(b => b.isConnected).length;
+  if (inDOM === 0 || (state.ammo <= 0 && stillAlive === 0)) endWave();
+}
+
+function endWave() {
+  if (!state.active) return;
+  state.active = false;
+  state.birds.forEach(b => { try { b.remove(); } catch(e){} });
+  state.birds = [];
+  showDog(() => {
+    if (state.wave >= 5) { endGame(); }
+    else { state.wave++; setTimeout(startWave, 1200); }
+  });
+}
+
+function showDog(cb) {
+  dogWrap.style.display = 'block';
+  let tailDir = 1, tailAng = 0;
+  state.tailTimer = setInterval(() => {
+    tailAng += tailDir * 12;
+    if (tailAng > 30 || tailAng < -15) tailDir *= -1;
+    const t = document.getElementById('dog-tail');
+    if (t) t.setAttribute('transform', `rotate(${tailAng},40,38)`);
+  }, 50);
+  setTimeout(() => {
+    clearInterval(state.tailTimer);
+    dogWrap.style.display = 'none';
+    cb && cb();
+  }, 1800);
+}
+
+function endGame() {
+  msgOverlay.style.display = 'flex';
+  const pct = state.shot > 0 ? Math.round(state.hit/state.shot*100) : 0;
+  msgBox.textContent = 'Game over!';
+  subMsg.textContent = `Final score: ${state.score}  |  Accuracy: ${pct}%`;
+  reloadBtn.textContent = 'Play again';
+  reloadBtn.style.display = 'block';
+}
+
+function startWave() {
+  state.ammo = AMMO_PER_WAVE;
+  state.shot = 0;
+  state.hit = 0;
+  state.active = true;
+  state.birds = [];
+  waveLabel.textContent = 'Wave ' + state.wave;
+  waveDisplay.textContent = state.wave;
+  makeAmmoBar(state.ammo);
+  updateHitDisplay();
+  msgOverlay.style.display = 'none';
+  const count = BIRDS_PER_WAVE + (state.wave - 1);
+  for (let i = 0; i < count; i++) spawnBird(i);
+  setTimeout(() => { if (state.active) endWave(); }, count * 1000 + 4000);
+}
+
+sky.addEventListener('click', () => {
+  if (!state.active || state.ammo <= 0) return;
+  state.ammo--;
+  state.shot++;
+  makeAmmoBar(state.ammo);
+  updateHitDisplay();
+  if (state.ammo === 0) setTimeout(checkWaveEnd, 1200);
+});
+
+reloadBtn.addEventListener('click', () => {
+  state.score = 0; state.wave = 1; state.hit = 0; state.shot = 0;
+  scoreDisplay.textContent = '0';
+  reloadBtn.style.display = 'none';
+  startWave();
+});
+
+msgOverlay.style.display = 'flex';
+msgBox.textContent = 'Duck Duck Goose!';
+subMsg.textContent = 'Click birds to shoot — ducks: 10pts, geese: 50pts!';
+reloadBtn.style.display = 'block';
+reloadBtn.textContent = 'Start hunting';
+makeAmmoBar(AMMO_PER_WAVE);
+hitDisplay.textContent = '0/0';
+</script>
